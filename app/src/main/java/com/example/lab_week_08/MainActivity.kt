@@ -13,6 +13,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.work.*
 import com.example.lab_week_08.worker.FirstWorker
 import com.example.lab_week_08.worker.SecondWorker
+import com.example.lab_week_08.worker.ThirdWorker   // ✅ Tambahkan ThirdWorker
 
 class MainActivity : AppCompatActivity() {
 
@@ -23,14 +24,13 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
 
-        // Mengatur layout agar full screen (Edge to Edge)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
 
-        // Permission untuk notifikasi Android 13+
+        // ✅ Izin untuk Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED
@@ -39,68 +39,81 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        val id = "001"
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        val id = "001"
-
+        // ✅ Request Workers
         val firstRequest = OneTimeWorkRequest.Builder(FirstWorker::class.java)
-            .setConstraints(constraints)
             .setInputData(getIdInputData(FirstWorker.INPUT_DATA_ID, id))
+            .setConstraints(constraints)
             .build()
 
         val secondRequest = OneTimeWorkRequest.Builder(SecondWorker::class.java)
-            .setConstraints(constraints)
             .setInputData(getIdInputData(SecondWorker.INPUT_DATA_ID, id))
+            .setConstraints(constraints)
             .build()
 
-        // Jalankan First -> Second Work
+        val thirdRequest = OneTimeWorkRequest.Builder(ThirdWorker::class.java)
+            .setInputData(getIdInputData(ThirdWorker.INPUT_DATA_ID, id))
+            .setConstraints(constraints)
+            .build()
+
+        // ✅ Jalankan First → Second → NOTIFICATION SERVICE → Third → SecondNotificationService
         workManager.beginWith(firstRequest).then(secondRequest).enqueue()
 
-        // Observe First Worker (tampilkan Toast)
-        workManager.getWorkInfoByIdLiveData(firstRequest.id)
-            .observe(this) { info ->
-                if (info != null && info.state.isFinished) {
-                    showResult("First process is done")
-                }
+        // ✅ Setelah First selesai → Toast
+        workManager.getWorkInfoByIdLiveData(firstRequest.id).observe(this) { info ->
+            if (info != null && info.state.isFinished) {
+                showResult("First process is done")
             }
+        }
 
-        // Observe Second Worker (mulai service notifikasi)
-        workManager.getWorkInfoByIdLiveData(secondRequest.id)
-            .observe(this) { info ->
-                if (info != null && info.state.isFinished) {
-                    showResult("Second process is done")
-                    launchNotificationServices()
+        // ✅ Setelah Second selesai → Mulai NotificationService
+        workManager.getWorkInfoByIdLiveData(secondRequest.id).observe(this) { info ->
+            if (info != null && info.state.isFinished) {
+                showResult("Second process is done")
+                launchNotificationServices()
+
+                // ✅ Setelah NotificationService selesai → jalankan ThirdWorker
+                NotificationService.trackingCompletion.observe(this) {
+                    showResult("NotificationService is done!")
+                    workManager.enqueue(thirdRequest)
                 }
             }
+        }
+
+        // ✅ Setelah Third selesai → Jalankan SecondNotificationService
+        workManager.getWorkInfoByIdLiveData(thirdRequest.id).observe(this) { info ->
+            if (info != null && info.state.isFinished) {
+                showResult("Third process is done")
+                launchSecondNotificationService()
+            }
+        }
     }
 
-    // InputData untuk Worker
     private fun getIdInputData(key: String, id: String): Data {
         return Data.Builder()
             .putString(key, id)
             .build()
     }
 
-    // Menampilkan Toast hasil proses
     private fun showResult(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
-    // Start NotificationService (ForegroundService) setelah Work selesai
     private fun launchNotificationServices() {
-        // Observe LiveData dari NotificationService
-        NotificationService.trackingCompletion.observe(this) { Id ->
-            showResult("Process for notification Channel ID $Id is done!")
-        }
-
-        // Intent untuk memulai NotificationService
         val serviceIntent = Intent(this, NotificationService::class.java).apply {
             putExtra(NotificationService.Extra_ID, "001")
         }
+        ContextCompat.startForegroundService(this, serviceIntent)
+    }
 
-        // Gunakan cara start foreground service yang aman
+    private fun launchSecondNotificationService() {
+        val serviceIntent = Intent(this, SecondNotificationService::class.java).apply {
+            putExtra(SecondNotificationService.EXTRA_ID, "001")
+        }
         ContextCompat.startForegroundService(this, serviceIntent)
     }
 }
