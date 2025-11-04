@@ -1,9 +1,9 @@
 package com.example.lab_week_08.worker
 
 import android.content.Context
-import androidx.work.ListenableWorker
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import androidx.work.Data
 
 class SecondWorker(context: Context, workerParams: WorkerParameters) : Worker(context, workerParams) {
     override fun doWork(): Result {
@@ -15,7 +15,7 @@ class SecondWorker(context: Context, workerParams: WorkerParameters) : Worker(co
             .putString(OUTPUT_DATA_ID, id)
             .build()
 
-        return ListenableWorker.Result.success(outputData)
+        return Result.success(outputData)
     }
     companion object{
         const val INPUT_DATA_ID = "inId"

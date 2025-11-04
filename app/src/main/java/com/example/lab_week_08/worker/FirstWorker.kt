@@ -3,6 +3,7 @@ package com.example.lab_week_08.worker
 import android.content.Context
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import androidx.work.Data
 
 
 class FirstWorker(context: Context, workerParams: WorkerParameters) : Worker(context, workerParams) {
